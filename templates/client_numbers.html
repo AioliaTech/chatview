@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client_name }} - Números{% endblock %}
+
+{% block extra_css %}
+<style>
+    .breadcrumb {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    .breadcrumb a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+        color: white;
+    }
+
+    .numbers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .number-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        text-decoration: none;
+        transition: transform 0.3s, background-color 0.3s;
+        border-left: 4px solid #4CAF50;
+    }
+
+    .number-card:hover {
+        transform: translateY(-3px);
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .phone-number {
+        font-size: 1.3em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        font-family: 'Courier New', monospace;
+    }
+
+    .number-info {
+        font-size: 0.9em;
+        opacity: 0.8;
+    }
+
+    .client-header {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        text-align: center;
+        color: white;
+    }
+
+    .client-title {
+        font-size: 2em;
+        font-weight: bold;
+        text-transform: capitalize;
+        margin-bottom: 10px;
+    }
+
+    .search-container {
+        max-width: 400px;
+        margin: 20px auto 0;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 12px 15px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .no-numbers {
+        text-align: center;
+        color: white;
+        font-size: 1.2em;
+        margin-top: 50px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">🏢 Clientes</a> / <strong>{{ client_name }}</strong>
+</div>
+
+<div class="client-header">
+    <div class="client-title">📱 {{ client_name }}</div>
+    <div style="opacity: 0.8;">
+        {% if numbers %}
+            {{ numbers|length }} números de telefone
+        {% else %}
+            Nenhum número encontrado
+        {% endif %}
+    </div>
+    
+    <div class="search-container">
+        <input type="text" 
+               id="numberSearch" 
+               placeholder="Buscar número..." 
+               class="search-input">
+    </div>
+</div>
+
+{% if numbers %}
+<div class="numbers-grid" id="numbersGrid">
+    {% for number in numbers %}
+    <a href="/chat/{{ number.session_id }}" class="number-card" data-phone="{{ number.phone_number }}">
+        <div class="phone-number">{{ number.phone_number }}</div>
+        <div class="number-info">
+            📝 {{ number.message_count }} mensagens<br>
