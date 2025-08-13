@@ -186,6 +186,52 @@ def api_messages(session_id):
     messages = get_conversation_messages(session_id)
     return jsonify(messages)
 
+@app.route('/test-data')
+def test_data():
+    """Endpoint para testar dados reais da tabela"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Conexão falhou"})
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Teste 1: Total de registros
+        cursor.execute("SELECT COUNT(*) as total FROM n8n_conversas")
+        total = cursor.fetchone()['total']
+        
+        # Teste 2: Session_ids únicos
+        cursor.execute("""
+            SELECT session_id, COUNT(*) as count 
+            FROM n8n_conversas 
+            WHERE session_id IS NOT NULL 
+            AND session_id != '' 
+            GROUP BY session_id 
+            ORDER BY count DESC 
+            LIMIT 10
+        """)
+        sessions = cursor.fetchall()
+        
+        # Teste 3: Amostra de dados
+        cursor.execute("SELECT id, session_id, message FROM n8n_conversas LIMIT 5")
+        sample = cursor.fetchall()
+        
+        # Teste 4: Busca específica
+        cursor.execute("SELECT COUNT(*) as found FROM n8n_conversas WHERE session_id = %s", ('franca:554899542122',))
+        specific_search = cursor.fetchone()['found']
+        
+        conn.close()
+        
+        return jsonify({
+            "total_records": total,
+            "unique_sessions": [dict(s) for s in sessions],
+            "sample_data": [dict(s) for s in sample],
+            "specific_search_franca": specific_search
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route('/debug')
 def debug_info():
     """Endpoint para debug das configurações"""
