@@ -107,14 +107,14 @@ def get_conversation_messages(session_id):
         return processed_messages
     
     except psycopg2.Error as e:
-        print(f"Erro ao buscar mensagens: {e}")
+        print(f"❌ Erro ao buscar mensagens: {e}")
         return []
     finally:
         conn.close()
 
-def get_all_conversations():
-    """Busca todas as conversas disponíveis (session_ids únicos)"""
-    print("🔍 Buscando todas as conversas...")
+def get_all_clients():
+    """Busca todos os clientes únicos (parte antes do :)"""
+    print("🔍 Buscando todos os clientes...")
     
     conn = get_db_connection()
     if not conn:
@@ -125,39 +125,133 @@ def get_all_conversations():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
         query = """
-        SELECT DISTINCT session_id, 
-               COUNT(*) as message_count,
-               MAX(id) as last_id
+        SELECT 
+            SPLIT_PART(session_id, ':', 1) as client_name,
+            COUNT(*) as total_conversations,
+            COUNT(DISTINCT session_id) as unique_numbers,
+            MAX(id) as last_id
         FROM n8n_conversas 
         WHERE session_id IS NOT NULL 
         AND session_id != ''
+        AND session_id LIKE '%:%'
+        GROUP BY SPLIT_PART(session_id, ':', 1)
+        ORDER BY last_id DESC
+        """
+        
+        print(f"🔍 Executando query de clientes: {query}")
+        
+        cursor.execute(query)
+        clients = cursor.fetchall()
+        
+        print(f"🔍 Retornou {len(clients)} clientes do banco")
+        for i, client in enumerate(clients[:5]):
+            print(f"🔍 Cliente {i+1}: {client['client_name']} - {client['unique_numbers']} números")
+        
+        return [dict(client) for client in clients]
+    
+    except psycopg2.Error as e:
+        print(f"❌ Erro ao buscar clientes: {e}")
+        return []
+    finally:
+        conn.close()
+
+def get_client_numbers(client_name):
+    """Busca todos os números de um cliente específico"""
+    print(f"🔍 Buscando números do cliente: {client_name}")
+    
+    conn = get_db_connection()
+    if not conn:
+        print("❌ Erro: Não conseguiu conectar ao banco")
+        return []
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+        SELECT 
+            session_id,
+            SPLIT_PART(session_id, ':', 2) as phone_number,
+            COUNT(*) as message_count,
+            MAX(id) as last_id
+        FROM n8n_conversas 
+        WHERE session_id LIKE %s
+        AND session_id IS NOT NULL 
+        AND session_id != ''
+        GROUP BY session_id
+        ORDER BY last_id DESC
+        """
+        
+        search_pattern = f"{client_name}:%"
+        print(f"🔍 Buscando com pattern: {search_pattern}")
+        
+        cursor.execute(query, (search_pattern,))
+        numbers = cursor.fetchall()
+        
+        print(f"🔍 Retornou {len(numbers)} números para {client_name}")
+        
+        return [dict(number) for number in numbers]
+    
+    except psycopg2.Error as e:
+        print(f"❌ Erro ao buscar números: {e}")
+        return []
+    finally:
+        conn.close()
+
+def search_conversations(search_term):
+    """Busca conversas por termo (cliente, número ou session_id completo)"""
+    print(f"🔍 Buscando conversas com termo: {search_term}")
+    
+    conn = get_db_connection()
+    if not conn:
+        return []
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+        SELECT DISTINCT session_id, 
+               COUNT(*) as message_count,
+               MAX(id) as last_id,
+               SPLIT_PART(session_id, ':', 1) as client_name,
+               SPLIT_PART(session_id, ':', 2) as phone_number
+        FROM n8n_conversas 
+        WHERE session_id IS NOT NULL 
+        AND session_id != ''
+        AND (
+            session_id ILIKE %s 
+            OR SPLIT_PART(session_id, ':', 1) ILIKE %s
+            OR SPLIT_PART(session_id, ':', 2) ILIKE %s
+        )
         GROUP BY session_id 
         ORDER BY last_id DESC
         LIMIT 50
         """
         
-        print(f"🔍 Executando query: {query}")
+        search_pattern = f"%{search_term}%"
+        cursor.execute(query, (search_pattern, search_pattern, search_pattern))
+        results = cursor.fetchall()
         
-        cursor.execute(query)
-        conversations = cursor.fetchall()
+        print(f"🔍 Busca retornou {len(results)} resultados")
         
-        print(f"🔍 Retornou {len(conversations)} conversas do banco")
-        for i, conv in enumerate(conversations[:3]):
-            print(f"🔍 Conversa {i+1}: session_id={conv['session_id']}, mensagens={conv['message_count']}")
-        
-        return [dict(conv) for conv in conversations]
+        return [dict(result) for result in results]
     
     except psycopg2.Error as e:
-        print(f"Erro ao buscar conversas: {e}")
+        print(f"❌ Erro na busca: {e}")
         return []
     finally:
         conn.close()
 
 @app.route('/')
 def index():
-    """Página inicial com lista de conversas"""
-    conversations = get_all_conversations()
-    return render_template('index.html', conversations=conversations)
+    """Página inicial com lista de clientes"""
+    clients = get_all_clients()
+    return render_template('clients.html', clients=clients)
+
+@app.route('/client/<client_name>')
+def view_client(client_name):
+    """Visualiza números de um cliente específico"""
+    numbers = get_client_numbers(client_name)
+    return render_template('client_numbers.html', numbers=numbers, client_name=client_name)
 
 @app.route('/chat/<session_id>')
 def view_chat(session_id):
@@ -167,24 +261,73 @@ def view_chat(session_id):
 
 @app.route('/search')
 def search():
-    """Busca conversa por session_id específico"""
-    session_id = request.args.get('key', '').strip()
-    if session_id:
-        messages = get_conversation_messages(session_id)
-        if messages:
-            return redirect(url_for('view_chat', session_id=session_id))
-        else:
-            return render_template('index.html', 
-                                 conversations=get_all_conversations(),
-                                 error=f"Nenhuma conversa encontrada para o session_id: {session_id}")
+    """Busca universal - clientes, números ou conversas"""
+    search_term = request.args.get('q', '').strip()
+    if not search_term:
+        return redirect(url_for('index'))
     
-    return redirect(url_for('index'))
+    # Se o termo tem ':', é provável que seja session_id completo
+    if ':' in search_term:
+        messages = get_conversation_messages(search_term)
+        if messages:
+            return redirect(url_for('view_chat', session_id=search_term))
+    
+    # Senão, busca geral
+    results = search_conversations(search_term)
+    return render_template('search_results.html', results=results, search_term=search_term)
+
+@app.route('/api/search')
+def api_search():
+    """API para busca em tempo real"""
+    search_term = request.args.get('q', '').strip()
+    if not search_term:
+        return jsonify([])
+    
+    results = search_conversations(search_term)
+    return jsonify(results)
 
 @app.route('/api/messages/<session_id>')
 def api_messages(session_id):
     """API endpoint para buscar mensagens (útil para atualizações AJAX)"""
     messages = get_conversation_messages(session_id)
     return jsonify(messages)
+
+@app.route('/debug')
+def debug_info():
+    """Endpoint para debug das configurações"""
+    debug_data = {
+        "environment_variables": {
+            "DB_HOST": os.getenv('DB_HOST', 'NOT SET'),
+            "DB_NAME": os.getenv('DB_NAME', 'NOT SET'),
+            "DB_USER": os.getenv('DB_USER', 'NOT SET'),
+            "DB_PASSWORD": "SET" if os.getenv('DB_PASSWORD') else "NOT SET",
+            "DB_PORT": os.getenv('DB_PORT', 'NOT SET')
+        },
+        "database_config": {
+            "host": DATABASE_CONFIG['host'],
+            "database": DATABASE_CONFIG['database'],
+            "user": DATABASE_CONFIG['user'],
+            "password": "***HIDDEN***",
+            "port": DATABASE_CONFIG['port']
+        }
+    }
+    
+    # Testar conexão
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT version();")
+            db_version = cursor.fetchone()[0]
+            debug_data["database_test"] = "SUCCESS"
+            debug_data["database_version"] = db_version
+            conn.close()
+        except Exception as e:
+            debug_data["database_test"] = f"ERROR: {str(e)}"
+    else:
+        debug_data["database_test"] = "CONNECTION FAILED"
+    
+    return jsonify(debug_data)
 
 @app.route('/find-tables')
 def find_tables():
@@ -277,43 +420,6 @@ def test_data():
         
     except Exception as e:
         return jsonify({"error": str(e)})
-
-@app.route('/debug')
-def debug_info():
-    """Endpoint para debug das configurações"""
-    debug_data = {
-        "environment_variables": {
-            "DB_HOST": os.getenv('DB_HOST', 'NOT SET'),
-            "DB_NAME": os.getenv('DB_NAME', 'NOT SET'),
-            "DB_USER": os.getenv('DB_USER', 'NOT SET'),
-            "DB_PASSWORD": "SET" if os.getenv('DB_PASSWORD') else "NOT SET",
-            "DB_PORT": os.getenv('DB_PORT', 'NOT SET')
-        },
-        "database_config": {
-            "host": DATABASE_CONFIG['host'],
-            "database": DATABASE_CONFIG['database'],
-            "user": DATABASE_CONFIG['user'],
-            "password": "***HIDDEN***",
-            "port": DATABASE_CONFIG['port']
-        }
-    }
-    
-    # Testar conexão
-    conn = get_db_connection()
-    if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT version();")
-            db_version = cursor.fetchone()[0]
-            debug_data["database_test"] = "SUCCESS"
-            debug_data["database_version"] = db_version
-            conn.close()
-        except Exception as e:
-            debug_data["database_test"] = f"ERROR: {str(e)}"
-    else:
-        debug_data["database_test"] = "CONNECTION FAILED"
-    
-    return jsonify(debug_data)
 
 @app.route('/health')
 def health_check():
