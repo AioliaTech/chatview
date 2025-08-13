@@ -24,17 +24,33 @@ DATABASE_CONFIG = {
 
 def get_db_connection():
     """Estabelece conexão com o PostgreSQL"""
+    
+    # Debug das variáveis de ambiente
+    print("🔍 === DEBUG VARIÁVEIS DE AMBIENTE ===")
+    print(f"DB_HOST: {os.getenv('DB_HOST', 'NÃO DEFINIDO')}")
+    print(f"DB_NAME: {os.getenv('DB_NAME', 'NÃO DEFINIDO')}")
+    print(f"DB_USER: {os.getenv('DB_USER', 'NÃO DEFINIDO')}")
+    print(f"DB_PASSWORD: {'***DEFINIDO***' if os.getenv('DB_PASSWORD') else 'NÃO DEFINIDO'}")
+    print(f"DB_PORT: {os.getenv('DB_PORT', 'NÃO DEFINIDO')}")
+    print("🔍 =====================================")
+    
     try:
+        print(f"🔍 Tentando conectar com: {DATABASE_CONFIG['user']}@{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}")
         conn = psycopg2.connect(**DATABASE_CONFIG)
+        print("✅ Conexão com PostgreSQL estabelecida com sucesso!")
         return conn
     except psycopg2.Error as e:
-        print(f"Erro ao conectar com o banco: {e}")
+        print(f"❌ Erro ao conectar com o banco: {e}")
+        print(f"❌ Detalhes da conexão tentada: {DATABASE_CONFIG}")
         return None
 
 def get_conversation_messages(session_id):
     """Busca todas as mensagens de uma conversa específica"""
+    print(f"🔍 Buscando mensagens para session_id: {session_id}")
+    
     conn = get_db_connection()
     if not conn:
+        print("❌ Erro: Não conseguiu conectar ao banco")
         return []
     
     try:
@@ -48,15 +64,22 @@ def get_conversation_messages(session_id):
         ORDER BY id ASC
         """
         
+        print(f"🔍 Executando query: {query}")
+        print(f"🔍 Com parâmetro: {session_id}")
+        
         cursor.execute(query, (session_id,))
         raw_messages = cursor.fetchall()
         
+        print(f"🔍 Retornou {len(raw_messages)} mensagens do banco")
+        
         # Processar mensagens JSON
         processed_messages = []
-        for msg in raw_messages:
+        for i, msg in enumerate(raw_messages):
+            print(f"🔍 Processando mensagem {i+1}: ID={msg['id']}")
             try:
                 # Parse do JSON da mensagem
                 message_data = json.loads(msg['message'])
+                print(f"🔍 JSON parsed: type={message_data.get('type')}, content_preview={str(message_data.get('content', ''))[:50]}...")
                 
                 processed_msg = {
                     'id': msg['id'],
@@ -68,7 +91,8 @@ def get_conversation_messages(session_id):
                 }
                 processed_messages.append(processed_msg)
                 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"❌ Erro ao fazer parse do JSON: {e}")
                 # Se der erro no JSON, adiciona mensagem de erro
                 processed_messages.append({
                     'id': msg['id'],
@@ -79,6 +103,7 @@ def get_conversation_messages(session_id):
                     'raw_message': {}
                 })
         
+        print(f"🎯 Retornando {len(processed_messages)} mensagens processadas")
         return processed_messages
     
     except psycopg2.Error as e:
@@ -89,8 +114,11 @@ def get_conversation_messages(session_id):
 
 def get_all_conversations():
     """Busca todas as conversas disponíveis (session_ids únicos)"""
+    print("🔍 Buscando todas as conversas...")
+    
     conn = get_db_connection()
     if not conn:
+        print("❌ Erro: Não conseguiu conectar ao banco")
         return []
     
     try:
@@ -101,12 +129,21 @@ def get_all_conversations():
                COUNT(*) as message_count,
                MAX(id) as last_id
         FROM public.n8n_conversas 
+        WHERE session_id IS NOT NULL 
+        AND session_id != ''
         GROUP BY session_id 
         ORDER BY last_id DESC
+        LIMIT 50
         """
+        
+        print(f"🔍 Executando query: {query}")
         
         cursor.execute(query)
         conversations = cursor.fetchall()
+        
+        print(f"🔍 Retornou {len(conversations)} conversas do banco")
+        for i, conv in enumerate(conversations[:3]):
+            print(f"🔍 Conversa {i+1}: session_id={conv['session_id']}, mensagens={conv['message_count']}")
         
         return [dict(conv) for conv in conversations]
     
@@ -148,6 +185,43 @@ def api_messages(session_id):
     """API endpoint para buscar mensagens (útil para atualizações AJAX)"""
     messages = get_conversation_messages(session_id)
     return jsonify(messages)
+
+@app.route('/debug')
+def debug_info():
+    """Endpoint para debug das configurações"""
+    debug_data = {
+        "environment_variables": {
+            "DB_HOST": os.getenv('DB_HOST', 'NOT SET'),
+            "DB_NAME": os.getenv('DB_NAME', 'NOT SET'),
+            "DB_USER": os.getenv('DB_USER', 'NOT SET'),
+            "DB_PASSWORD": "SET" if os.getenv('DB_PASSWORD') else "NOT SET",
+            "DB_PORT": os.getenv('DB_PORT', 'NOT SET')
+        },
+        "database_config": {
+            "host": DATABASE_CONFIG['host'],
+            "database": DATABASE_CONFIG['database'],
+            "user": DATABASE_CONFIG['user'],
+            "password": "***HIDDEN***",
+            "port": DATABASE_CONFIG['port']
+        }
+    }
+    
+    # Testar conexão
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT version();")
+            db_version = cursor.fetchone()[0]
+            debug_data["database_test"] = "SUCCESS"
+            debug_data["database_version"] = db_version
+            conn.close()
+        except Exception as e:
+            debug_data["database_test"] = f"ERROR: {str(e)}"
+    else:
+        debug_data["database_test"] = "CONNECTION FAILED"
+    
+    return jsonify(debug_data)
 
 @app.route('/health')
 def health_check():
