@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Chat Viewer - Lista de Conversas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .conversations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .conversation-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        text-decoration: none;
+        transition: transform 0.3s, background-color 0.3s;
+    }
+
+    .conversation-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .conversation-key {
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        word-break: break-all;
+    }
+
+    .conversation-info {
+        font-size: 0.9em;
+        opacity: 0.8;
+    }
+
+    .no-conversations {
+        text-align: center;
+        color: white;
+        font-size: 1.2em;
+        margin-top: 50px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>💬 Chat Viewer</h1>
+    <p style="color: rgba(255,255,255,0.8);">Sistema de visualização de conversas IA</p>
+    
+    <form class="search-form" action="/search" method="GET">
+        <input type="text" name="key" placeholder="Digite o session_id da conversa" class="search-input" required>
+        <button type="submit" class="btn">🔍 Buscar</button>
+    </form>
+</div>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if conversations %}
+<div class="conversations-grid">
+    {% for conv in conversations %}
+    <a href="/chat/{{ conv.session_id }}" class="conversation-card">
+        <div class="conversation-key">{{ conv.session_id }}</div>
+        <div class="conversation-info">
+            📝 {{ conv.message_count }} mensagens<br>
+            🆔 ID: {{ conv.last_id }}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-conversations">
+    <p>Nenhuma conversa encontrada no banco de dados.</p>
+    <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.7;">
+        Verifique se a conexão com o PostgreSQL está funcionando.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
