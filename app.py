@@ -186,6 +186,52 @@ def api_messages(session_id):
     messages = get_conversation_messages(session_id)
     return jsonify(messages)
 
+@app.route('/find-tables')
+def find_tables():
+    """Endpoint para encontrar onde está a tabela n8n_conversas"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Conexão falhou"})
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Listar todos os bancos
+        cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false")
+        databases = [row['datname'] for row in cursor.fetchall()]
+        
+        # Listar todas as tabelas no banco atual
+        cursor.execute("""
+            SELECT table_schema, table_name 
+            FROM information_schema.tables 
+            WHERE table_type = 'BASE TABLE'
+            ORDER BY table_schema, table_name
+        """)
+        tables = cursor.fetchall()
+        
+        # Buscar tabelas com "conversa" ou "n8n" no nome
+        cursor.execute("""
+            SELECT table_schema, table_name 
+            FROM information_schema.tables 
+            WHERE table_name ILIKE '%conversa%' 
+            OR table_name ILIKE '%n8n%'
+            OR table_name ILIKE '%message%'
+            OR table_name ILIKE '%chat%'
+        """)
+        relevant_tables = cursor.fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            "current_database": DATABASE_CONFIG['database'],
+            "available_databases": databases,
+            "all_tables_in_current_db": [dict(t) for t in tables],
+            "relevant_tables": [dict(t) for t in relevant_tables]
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route('/test-data')
 def test_data():
     """Endpoint para testar dados reais da tabela"""
