@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados: {{ search_term }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .breadcrumb {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    .breadcrumb a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+    }
+
+    .search-header {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        text-align: center;
+        color: white;
+    }
+
+    .results-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .result-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        text-decoration: none;
+        transition: transform 0.3s, background-color 0.3s;
+        border-left: 4px solid #2196F3;
+    }
+
+    .result-card:hover {
+        transform: translateY(-3px);
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .result-session {
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        word-break: break-all;
+    }
+
+    .result-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        font-size: 0.9em;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">🏢 Clientes</a> / <strong>Busca: "{{ search_term }}"</strong>
+</div>
+
+<div class="search-header">
+    <h1>🔍 Resultados da Busca</h1>
+    <p>Termo: <strong>"{{ search_term }}"</strong></p>
+    <p style="opacity: 0.8;">{{ results|length }} resultado(s) encontrado(s)</p>
+</div>
+
+{% if results %}
+<div class="results-grid">
+    {% for result in results %}
+    <a href="/chat/{{ result.session_id }}" class="result-card">
+        <div class="result-session">{{ result.session_id }}</div>
+        <div class="result-details">
+            <div>📝 {{ result.message_count }} mensagens</div>
+            <div>🆔 ID: {{ result.last_id }}</div>
+            <div>🏢 {{ result.client_name }}</div>
+            <div>📱 {{ result.phone_number }}</div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align: center; color: white; margin-top: 50px;">
+    <p>Nenhum resultado encontrado para "<strong>{{ search_term }}</strong>".</p>
+    <p style="opacity: 0.7; margin-top: 10px;">Tente buscar por cliente, número ou session_id.</p>
+</div>
+{% endif %}
+{% endblock %}
