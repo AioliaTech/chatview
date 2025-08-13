@@ -70,3 +70,105 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .stat-item {
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 8px;
+    }
+
+    .stat-number {
+        font-size: 1.5em;
+        font-weight: bold;
+        display: block;
+    }
+
+    .stat-label {
+        font-size: 0.8em;
+        opacity: 0.8;
+        margin-top: 5px;
+    }
+
+    .search-container {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 15px 20px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+    }
+
+    .no-clients {
+        text-align: center;
+        color: white;
+        font-size: 1.2em;
+        margin-top: 50px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>🏢 Clientes</h1>
+    <p style="color: rgba(255,255,255,0.8);">Sistema de visualização de conversas por cliente</p>
+    
+    <div class="search-container">
+        <input type="text" 
+               id="clientSearch" 
+               placeholder="Buscar cliente..." 
+               class="search-input">
+    </div>
+</div>
+
+{% if clients %}
+<div class="clients-grid" id="clientsGrid">
+    {% for client in clients %}
+    <a href="/client/{{ client.client_name }}" class="client-card" data-client="{{ client.client_name.lower() }}">
+        <div class="client-name">{{ client.client_name }}</div>
+        <div class="client-stats">
+            <div class="stat-item">
+                <span class="stat-number">{{ client.unique_numbers }}</span>
+                <div class="stat-label">Números</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">{{ client.total_conversations }}</span>
+                <div class="stat-label">Mensagens</div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-clients">
+    <p>Nenhum cliente encontrado no banco de dados.</p>
+</div>
+{% endif %}
+
+<script>
+const clientSearch = document.getElementById('clientSearch');
+const clientsGrid = document.getElementById('clientsGrid');
+const originalCards = Array.from(clientsGrid.children);
+
+clientSearch.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    
+    originalCards.forEach(card => {
+        const clientName = card.dataset.client;
+        if (clientName.includes(query)) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}
