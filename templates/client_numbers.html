@@ -129,3 +129,33 @@
         <div class="phone-number">{{ number.phone_number }}</div>
         <div class="number-info">
             📝 {{ number.message_count }} mensagens<br>
+            🆔 Última: ID {{ number.last_id }}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-numbers">
+    <p>Nenhum número encontrado para o cliente <strong>{{ client_name }}</strong>.</p>
+</div>
+{% endif %}
+
+<script>
+const numberSearch = document.getElementById('numberSearch');
+const numbersGrid = document.getElementById('numbersGrid');
+const originalCards = Array.from(numbersGrid.children);
+
+numberSearch.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    
+    originalCards.forEach(card => {
+        const phoneNumber = card.dataset.phone.toLowerCase();
+        if (phoneNumber.includes(query)) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}
