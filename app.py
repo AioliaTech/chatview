@@ -59,7 +59,7 @@ def get_conversation_messages(session_id):
         # Query ajustada para sua estrutura atual
         query = """
         SELECT id, session_id, message
-        FROM public.n8n_conversas 
+        FROM n8n_conversas 
         WHERE session_id = %s 
         ORDER BY id ASC
         """
@@ -128,7 +128,7 @@ def get_all_conversations():
         SELECT DISTINCT session_id, 
                COUNT(*) as message_count,
                MAX(id) as last_id
-        FROM public.n8n_conversas 
+        FROM n8n_conversas 
         WHERE session_id IS NOT NULL 
         AND session_id != ''
         GROUP BY session_id 
