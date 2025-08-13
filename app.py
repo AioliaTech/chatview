@@ -267,10 +267,28 @@ def search_conversations(search_term):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Página de login"""
+    """Página de login com debug"""
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
+        
+        # DEBUG - Vamos ver o que está chegando
+        print("🔍 === DEBUG LOGIN ===")
+        print(f"Username digitado: '{username}'")
+        print(f"Password digitado: '{password}'")
+        print(f"LOGIN_USER do ENV: '{LOGIN_USER}'")
+        print(f"LOGIN_PASSWORD do ENV: '{LOGIN_PASSWORD}'")
+        print(f"Username length: {len(username)}")
+        print(f"Password length: {len(password)}")
+        print(f"LOGIN_USER length: {len(LOGIN_USER)}")
+        print(f"LOGIN_PASSWORD length: {len(LOGIN_PASSWORD)}")
+        print(f"Username match: {username == LOGIN_USER}")
+        print(f"Password match: {password == LOGIN_PASSWORD}")
+        print(f"Username repr: {repr(username)}")
+        print(f"Password repr: {repr(password)}")
+        print(f"LOGIN_USER repr: {repr(LOGIN_USER)}")
+        print(f"LOGIN_PASSWORD repr: {repr(LOGIN_PASSWORD)}")
+        print("🔍 ==================")
         
         # Verificar credenciais
         if username == LOGIN_USER and password == LOGIN_PASSWORD:
@@ -291,6 +309,24 @@ def logout():
     session.clear()
     print(f"✅ Logout realizado para: {username}")
     return redirect(url_for('login'))
+
+@app.route('/debug-login')
+def debug_login():
+    """Debug das credenciais (REMOVER EM PRODUÇÃO!)"""
+    return jsonify({
+        "LOGIN_USER": LOGIN_USER,
+        "LOGIN_PASSWORD": LOGIN_PASSWORD,  # Cuidado! Mostra a senha real
+        "SECRET_KEY": app.secret_key,
+        "env_vars": {
+            "LOGIN_USER": os.getenv('LOGIN_USER', 'NOT SET'),
+            "LOGIN_PASSWORD": os.getenv('LOGIN_PASSWORD', 'NOT SET'),
+            "SECRET_KEY": os.getenv('SECRET_KEY', 'NOT SET')
+        },
+        "lengths": {
+            "LOGIN_USER": len(LOGIN_USER),
+            "LOGIN_PASSWORD": len(LOGIN_PASSWORD)
+        }
+    })
 
 # === ROTAS PRINCIPAIS (PROTEGIDAS) ===
 
@@ -364,7 +400,7 @@ def debug_info():
             "DB_USER": os.getenv('DB_USER', 'NOT SET'),
             "DB_PASSWORD": "SET" if os.getenv('DB_PASSWORD') else "NOT SET",
             "DB_PORT": os.getenv('DB_PORT', 'NOT SET'),
-            "LOGIN_USER": "SET" if os.getenv('LOGIN_USER') else "NOT SET",
+            "LOGIN_USER": os.getenv('LOGIN_USER', 'NOT SET'),
             "LOGIN_PASSWORD": "SET" if os.getenv('LOGIN_PASSWORD') else "NOT SET",
             "SECRET_KEY": "SET" if os.getenv('SECRET_KEY') else "NOT SET"
         },
@@ -473,17 +509,12 @@ def test_data():
         cursor.execute("SELECT id, session_id, message FROM n8n_conversas LIMIT 5")
         sample = cursor.fetchall()
         
-        # Teste 4: Busca específica
-        cursor.execute("SELECT COUNT(*) as found FROM n8n_conversas WHERE session_id = %s", ('franca:554899542122',))
-        specific_search = cursor.fetchone()['found']
-        
         conn.close()
         
         return jsonify({
             "total_records": total,
             "unique_sessions": [dict(s) for s in sessions],
-            "sample_data": [dict(s) for s in sample],
-            "specific_search_franca": specific_search
+            "sample_data": [dict(s) for s in sample]
         })
         
     except Exception as e:
