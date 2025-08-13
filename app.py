@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
 Sistema de visualização de conversas entre humano e IA
-Para hospedar no EasyPanel
+Para hospedar no EasyPanel - Com Sistema de Login
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime
 import json
+from functools import wraps
+import hashlib
 
 app = Flask(__name__)
+
+# Configuração da chave secreta para sessões
+app.secret_key = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
 
 # Configurações do banco de dados
 DATABASE_CONFIG = {
@@ -21,6 +26,23 @@ DATABASE_CONFIG = {
     'password': os.getenv('DB_PASSWORD', 'sua_senha'),
     'port': os.getenv('DB_PORT', '5432')
 }
+
+# Credenciais de login das variáveis de ambiente
+LOGIN_USER = os.getenv('LOGIN_USER', 'admin')
+LOGIN_PASSWORD = os.getenv('LOGIN_PASSWORD', 'senha123')
+
+def hash_password(password):
+    """Cria hash da senha para comparação segura"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def require_auth(f):
+    """Decorator que exige autenticação para acessar rotas"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def get_db_connection():
     """Estabelece conexão com o PostgreSQL"""
@@ -241,25 +263,60 @@ def search_conversations(search_term):
     finally:
         conn.close()
 
+# === ROTAS DE AUTENTICAÇÃO ===
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Página de login"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        # Verificar credenciais
+        if username == LOGIN_USER and password == LOGIN_PASSWORD:
+            session['logged_in'] = True
+            session['username'] = username
+            print(f"✅ Login bem-sucedido para: {username}")
+            return redirect(url_for('index'))
+        else:
+            print(f"❌ Tentativa de login falhada para: {username}")
+            flash('Usuário ou senha incorretos!', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    """Fazer logout"""
+    username = session.get('username', 'Usuário desconhecido')
+    session.clear()
+    print(f"✅ Logout realizado para: {username}")
+    return redirect(url_for('login'))
+
+# === ROTAS PRINCIPAIS (PROTEGIDAS) ===
+
 @app.route('/')
+@require_auth
 def index():
     """Página inicial com lista de clientes"""
     clients = get_all_clients()
     return render_template('clients.html', clients=clients)
 
 @app.route('/client/<client_name>')
+@require_auth
 def view_client(client_name):
     """Visualiza números de um cliente específico"""
     numbers = get_client_numbers(client_name)
     return render_template('client_numbers.html', numbers=numbers, client_name=client_name)
 
 @app.route('/chat/<session_id>')
+@require_auth
 def view_chat(session_id):
     """Visualiza uma conversa específica"""
     messages = get_conversation_messages(session_id)
     return render_template('chat.html', messages=messages, session_id=session_id)
 
 @app.route('/search')
+@require_auth
 def search():
     """Busca universal - clientes, números ou conversas"""
     search_term = request.args.get('q', '').strip()
@@ -277,6 +334,7 @@ def search():
     return render_template('search_results.html', results=results, search_term=search_term)
 
 @app.route('/api/search')
+@require_auth
 def api_search():
     """API para busca em tempo real"""
     search_term = request.args.get('q', '').strip()
@@ -287,12 +345,16 @@ def api_search():
     return jsonify(results)
 
 @app.route('/api/messages/<session_id>')
+@require_auth
 def api_messages(session_id):
     """API endpoint para buscar mensagens (útil para atualizações AJAX)"""
     messages = get_conversation_messages(session_id)
     return jsonify(messages)
 
+# === ROTAS DE DEBUG (PROTEGIDAS) ===
+
 @app.route('/debug')
+@require_auth
 def debug_info():
     """Endpoint para debug das configurações"""
     debug_data = {
@@ -301,7 +363,10 @@ def debug_info():
             "DB_NAME": os.getenv('DB_NAME', 'NOT SET'),
             "DB_USER": os.getenv('DB_USER', 'NOT SET'),
             "DB_PASSWORD": "SET" if os.getenv('DB_PASSWORD') else "NOT SET",
-            "DB_PORT": os.getenv('DB_PORT', 'NOT SET')
+            "DB_PORT": os.getenv('DB_PORT', 'NOT SET'),
+            "LOGIN_USER": "SET" if os.getenv('LOGIN_USER') else "NOT SET",
+            "LOGIN_PASSWORD": "SET" if os.getenv('LOGIN_PASSWORD') else "NOT SET",
+            "SECRET_KEY": "SET" if os.getenv('SECRET_KEY') else "NOT SET"
         },
         "database_config": {
             "host": DATABASE_CONFIG['host'],
@@ -309,7 +374,8 @@ def debug_info():
             "user": DATABASE_CONFIG['user'],
             "password": "***HIDDEN***",
             "port": DATABASE_CONFIG['port']
-        }
+        },
+        "current_user": session.get('username', 'Não logado')
     }
     
     # Testar conexão
@@ -330,6 +396,7 @@ def debug_info():
     return jsonify(debug_data)
 
 @app.route('/find-tables')
+@require_auth
 def find_tables():
     """Endpoint para encontrar onde está a tabela n8n_conversas"""
     conn = get_db_connection()
@@ -376,6 +443,7 @@ def find_tables():
         return jsonify({"error": str(e)})
 
 @app.route('/test-data')
+@require_auth
 def test_data():
     """Endpoint para testar dados reais da tabela"""
     conn = get_db_connection()
@@ -423,7 +491,7 @@ def test_data():
 
 @app.route('/health')
 def health_check():
-    """Health check para o EasyPanel"""
+    """Health check para o EasyPanel (não precisa de login)"""
     conn = get_db_connection()
     if conn:
         conn.close()
