@@ -77,9 +77,9 @@ def get_conversation_messages(session_id):
         for i, msg in enumerate(raw_messages):
             print(f"🔍 Processando mensagem {i+1}: ID={msg['id']}")
             try:
-                # Parse do JSON da mensagem
-                message_data = json.loads(msg['message'])
-                print(f"🔍 JSON parsed: type={message_data.get('type')}, content_preview={str(message_data.get('content', ''))[:50]}...")
+                # O campo message já vem como dict (JSONB), não precisa de json.loads()
+                message_data = msg['message'] if isinstance(msg['message'], dict) else json.loads(msg['message'])
+                print(f"🔍 Dados da mensagem: type={message_data.get('type')}, content_preview={str(message_data.get('content', ''))[:50]}...")
                 
                 processed_msg = {
                     'id': msg['id'],
@@ -91,9 +91,9 @@ def get_conversation_messages(session_id):
                 }
                 processed_messages.append(processed_msg)
                 
-            except json.JSONDecodeError as e:
-                print(f"❌ Erro ao fazer parse do JSON: {e}")
-                # Se der erro no JSON, adiciona mensagem de erro
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"❌ Erro ao processar mensagem: {e}")
+                # Se der erro, adiciona mensagem de erro
                 processed_messages.append({
                     'id': msg['id'],
                     'session_id': msg['session_id'],
