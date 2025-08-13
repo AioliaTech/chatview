@@ -4,6 +4,24 @@
 
 {% block extra_css %}
 <style>
+    .breadcrumb {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    .breadcrumb a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+        color: white;
+    }
+
     .chat-header {
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
@@ -131,6 +149,15 @@
 {% endblock %}
 
 {% block content %}
+{% set client_name = session_id.split(':')[0] %}
+{% set phone_number = session_id.split(':')[1] if ':' in session_id else '' %}
+
+<div class="breadcrumb">
+    <a href="/">🏢 Clientes</a> / 
+    <a href="/client/{{ client_name }}">{{ client_name }}</a> / 
+    <strong>{{ phone_number }}</strong>
+</div>
+
 <div class="chat-header">
     <div>
         <div class="chat-title">💬 {{ session_id }}</div>
@@ -142,7 +169,7 @@
             {% endif %}
         </div>
     </div>
-    <a href="/" class="btn btn-back">← Voltar</a>
+    <a href="/client/{{ client_name }}" class="btn btn-back">← Voltar</a>
 </div>
 
 <div class="chat-container">
